@@ -18,9 +18,13 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -73,6 +77,38 @@ class AccountServiceImplTest {
                 deposit,
                 newBalance
         ));
+        verifyNoMoreInteractions(operationRepository);
+    }
+
+    @Test
+    void shouldThrowNegativeAmountExceptionWhenMakingDepositOfNegativeAmount() {
+        // Given
+        String accountId = "client1";
+        Amount amount = new Amount(-1);
+        String expectedExceptionMessage = "The amount is negative, value : -1,00";
+
+        // When
+        Throwable exception = assertThrows(NegativeAmountException.class, () -> accountService.deposit(accountId, amount));
+
+        // Then
+        assertEquals(expectedExceptionMessage, exception.getMessage());
+        verifyNoInteractions(operationRepository);
+    }
+
+    @Test
+    void shouldThrowAccountNotFoundExceptionWhenMakingDepositOnNonExistingAccount() throws AccountNotFoundException {
+        // Given
+        String accountId = "accountX";
+        Amount amount = new Amount(50);
+        String expectedExceptionMessage = "Specified account of id: accountX does not exist";
+        doThrow(new AccountNotFoundException(accountId)).when(operationRepository).findLast(accountId);
+
+        // When
+        Throwable exception = assertThrows(AccountNotFoundException.class, () -> accountService.deposit(accountId, amount));
+        assertEquals(exception.getMessage(), expectedExceptionMessage);
+
+        // Then
+        verify(operationRepository, times(1)).findLast(accountId);
         verifyNoMoreInteractions(operationRepository);
     }
 }
