@@ -41,6 +41,13 @@ public class AccountServiceImpl implements AccountService {
 
     }
 
+    @Override
+    public void printAccountStatement(String accountId, AccountStatementFormatter accountStatementFormatter,
+                                      AccountStatementPrinter accountStatementPrinter) throws AccountNotFoundException {
+        String formattedAccountStatement = accountStatementFormatter.format(operationRepository.findAll(accountId));
+        accountStatementPrinter.print(formattedAccountStatement);
+    }
+
     private Amount getBalance(String accountId, Amount amount) throws NegativeAmountException, AccountNotFoundException {
         if (amount.isLesserThan(Amount.ZERO)) {
             throw new NegativeAmountException(amount);

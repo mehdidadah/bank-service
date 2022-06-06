@@ -11,4 +11,6 @@ public interface AccountService {
 
     void withdraw(String accountId, Amount amount) throws AccountNotFoundException, InsufficientBalanceException, NegativeAmountException;
 
+    void printAccountStatement(String accountId, AccountStatementFormatter accountStatementFormatter,
+                               AccountStatementPrinter accountStatementPrinter) throws AccountNotFoundException;
 }

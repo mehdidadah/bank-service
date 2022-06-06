@@ -40,4 +40,15 @@ public class InMemoryOperationRepository implements OperationRepository {
         }
         return accountOperations.stream().reduce((first, second) -> second);
     }
+
+    @Override
+    public List<Operation> findAll(String accountId) throws AccountNotFoundException {
+
+        List<Operation> accountOperations = operations.get(accountId);
+
+        if (accountOperations == null) {
+            throw new AccountNotFoundException(accountId);
+        }
+        return accountOperations;
+    }
 }

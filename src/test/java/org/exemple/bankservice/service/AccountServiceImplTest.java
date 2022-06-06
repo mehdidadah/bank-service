@@ -10,6 +10,7 @@ import org.exemple.bankservice.model.OperationType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -17,12 +18,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -34,6 +37,12 @@ class AccountServiceImplTest {
 
     @Mock
     private OperationRepository operationRepository;
+
+    @Mock
+    private AccountStatementPrinter accountStatementPrinter;
+
+    @Mock
+    private AccountStatementFormatter accountStatementFormatter;
 
     private AccountService accountService;
 
@@ -207,5 +216,48 @@ class AccountServiceImplTest {
         assertEquals(exception.getMessage(), expectedExceptionMessage);
         verify(operationRepository, times(1)).findLast(accountId);
         verifyNoMoreInteractions(operationRepository);
+    }
+
+    @Test
+    void shouldPrintAccountStatementWhenCalledForExistingAccountWithOperationHistory() throws AccountNotFoundException {
+
+        // Given
+        String accountId = "client123";
+        List<Operation> operations = List.of(
+                new Operation(OperationType.DEPOSIT, accountId, time, new Amount(500), new Amount(5000)),
+                new Operation(OperationType.WITHDRAWAL, accountId, time, new Amount(500), new Amount(4500)));
+        String dummyFormattedStatement = "formatted statement";
+
+        when(operationRepository.findAll(accountId)).thenReturn(operations);
+        when(accountStatementFormatter.format(operations)).thenReturn(dummyFormattedStatement);
+
+        // When
+        accountService.printAccountStatement(accountId, accountStatementFormatter, accountStatementPrinter);
+
+        // Then
+        InOrder inOrder = inOrder(operationRepository, accountStatementFormatter, accountStatementPrinter);
+        inOrder.verify(operationRepository, times(1)).findAll(accountId);
+        inOrder.verify(accountStatementFormatter, times(1)).format(operations);
+        inOrder.verify(accountStatementPrinter, times(1)).print(dummyFormattedStatement);
+        inOrder.verifyNoMoreInteractions();
+
+    }
+
+    @Test
+    void shouldThrowAccountNotFoundExceptionWhenPrintAccountStatementIsCalledForNonExistingAccount() throws AccountNotFoundException {
+
+        // Given
+        String accountId = "accountX";
+        String expectedExceptionMessage = "Specified account of id: accountX does not exist";
+        doThrow(new AccountNotFoundException(accountId)).when(operationRepository).findAll(accountId);
+
+        // When
+        Throwable exception = assertThrows(AccountNotFoundException.class, () -> accountService.printAccountStatement(accountId,
+                accountStatementFormatter, accountStatementPrinter));
+
+        // Then
+        assertEquals(exception.getMessage(), expectedExceptionMessage);
+        verify(operationRepository, times(1)).findAll(accountId);
+        verifyNoMoreInteractions(operationRepository, accountStatementFormatter, accountStatementPrinter);
     }
 }
