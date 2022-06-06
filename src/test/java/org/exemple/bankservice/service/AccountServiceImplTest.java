@@ -2,6 +2,7 @@ package org.exemple.bankservice.service;
 
 import org.exemple.bankservice.OperationRepository;
 import org.exemple.bankservice.error.AccountNotFoundException;
+import org.exemple.bankservice.error.InsufficientBalanceException;
 import org.exemple.bankservice.error.NegativeAmountException;
 import org.exemple.bankservice.model.Amount;
 import org.exemple.bankservice.model.Operation;
@@ -108,6 +109,102 @@ class AccountServiceImplTest {
         assertEquals(exception.getMessage(), expectedExceptionMessage);
 
         // Then
+        verify(operationRepository, times(1)).findLast(accountId);
+        verifyNoMoreInteractions(operationRepository);
+    }
+
+    //TEST USER STORY 2 : WITHDRAW
+    @Test
+    void shouldSaveOperationWhenWithdrawIsMadeGivenEnoughBalanceAndPositiveAmountAndExistingAccount()
+            throws AccountNotFoundException, InsufficientBalanceException, NegativeAmountException {
+
+        // Given
+        String accountId = "client1";
+        Amount initialBalance = new Amount(500);
+        Amount withdrawal = new Amount(100);
+        Amount newBalance = new Amount(400);
+
+        //find last operation to know current balance
+        when(operationRepository.findLast(accountId)).thenReturn(Optional.of(new Operation(
+                OperationType.WITHDRAWAL,
+                accountId,
+                time,
+                new Amount(50),
+                initialBalance
+        )));
+
+        // When
+        accountService.withdraw(accountId, withdrawal);
+
+        // Then
+        verify(operationRepository, times(1)).findLast(accountId);
+        verify(operationRepository, times(1)).add(new Operation(
+                OperationType.WITHDRAWAL,
+                accountId,
+                time,
+                withdrawal,
+                newBalance
+        ));
+        verifyNoMoreInteractions(operationRepository);
+    }
+
+    @Test
+    void shouldThrowNegativeAmountExceptionWhenMakingWithdrawOfNegativeAmount() {
+
+        // Given
+        String accountId = "client1";
+        Amount amount = new Amount(-1);
+        String expectedExceptionMessage = "The amount is negative, value : -1,00";
+
+        // When
+        Throwable exception = assertThrows(NegativeAmountException.class, () -> accountService.withdraw(accountId, amount));
+
+        // Then
+        assertEquals(expectedExceptionMessage, exception.getMessage());
+        verifyNoInteractions(operationRepository);
+
+    }
+
+    @Test
+    void shouldThrowInsufficientBalanceExceptionWhenWithdrawingWithInsufficientBalance() throws AccountNotFoundException {
+
+        // Given
+        String accountId = "client1";
+        Amount initialBalance = Amount.ZERO;
+        Amount withdrawal = new Amount(10);
+        String expectedExceptionMessage = "Balance of 0,00 is insufficient to withdraw amount of 10,00";
+
+        when(operationRepository.findLast(anyString())).thenReturn(Optional.of(new Operation(
+                OperationType.WITHDRAWAL,
+                accountId,
+                time,
+                new Amount(50),
+                initialBalance
+        )));
+
+        // When
+        Throwable exception = assertThrows(InsufficientBalanceException.class, () -> accountService.withdraw(accountId, withdrawal));
+
+        // Then
+        assertEquals(expectedExceptionMessage, exception.getMessage());
+        verify(operationRepository, times(1)).findLast(accountId);
+        verifyNoMoreInteractions(operationRepository);
+    }
+
+
+    @Test
+    void shouldThrowAccountNotFoundExceptionWhenWithdrawingFromNonExistingAccount() throws AccountNotFoundException {
+        // Given
+        String accountId = "accountX";
+        Amount amount = new Amount(50);
+        String expectedExceptionMessage = "Specified account of id: accountX does not exist";
+        doThrow(new AccountNotFoundException(accountId)).when(operationRepository).findLast(accountId);
+
+        // When
+        Throwable exception = assertThrows(AccountNotFoundException.class, () -> accountService.withdraw(accountId, amount));
+
+        // Then
+        assertEquals(exception.getMessage(), expectedExceptionMessage);
         verify(operationRepository, times(1)).findLast(accountId);
         verifyNoMoreInteractions(operationRepository);
     }

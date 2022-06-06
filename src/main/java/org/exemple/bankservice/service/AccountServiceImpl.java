@@ -2,6 +2,7 @@ package org.exemple.bankservice.service;
 
 import org.exemple.bankservice.OperationRepository;
 import org.exemple.bankservice.error.AccountNotFoundException;
+import org.exemple.bankservice.error.InsufficientBalanceException;
 import org.exemple.bankservice.error.NegativeAmountException;
 import org.exemple.bankservice.model.Amount;
 import org.exemple.bankservice.model.Operation;
@@ -22,17 +23,32 @@ public class AccountServiceImpl implements AccountService {
 
     @Override
     public void deposit(String accountId, Amount amount) throws AccountNotFoundException, NegativeAmountException {
+        Amount balance = getBalance(accountId, amount);
+        Amount newBalance = balance.add(amount);
+        operationRepository.add(new Operation(OperationType.DEPOSIT, accountId, LocalDateTime.now(clock), amount, newBalance));
+    }
 
+    @Override
+    public void withdraw(String accountId, Amount amount) throws AccountNotFoundException, InsufficientBalanceException, NegativeAmountException {
+        Amount balance = getBalance(accountId, amount);
+
+        if (balance.isLesserThan(amount)) {
+            throw new InsufficientBalanceException(balance, amount);
+        }
+
+        Amount newBalance = balance.subtract(amount);
+        operationRepository.add(new Operation(OperationType.WITHDRAWAL, accountId, LocalDateTime.now(clock), amount, newBalance));
+
+    }
+
+    private Amount getBalance(String accountId, Amount amount) throws NegativeAmountException, AccountNotFoundException {
         if (amount.isLesserThan(Amount.ZERO)) {
             throw new NegativeAmountException(amount);
         }
 
-        Amount balance = operationRepository
+        return operationRepository
                 .findLast(accountId)
                 .map(Operation::balance)
                 .orElse(Amount.ZERO);
-
-        Amount newBalance = balance.add(amount);
-        operationRepository.add(new Operation(OperationType.DEPOSIT, accountId, LocalDateTime.now(clock), amount, newBalance));
     }
 }
